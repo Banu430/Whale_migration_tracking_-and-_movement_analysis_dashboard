@@ -98,6 +98,68 @@ def generate_gradcam(model, img_tensor, original_img):
     return overlay
 
 # ================================================================
+# 🔬 ADVANCED ADD-ON — IMAGE QUALITY CHECK (INTEGRATION ONLY)
+# ================================================================
+def check_image_quality(pil_img):
+
+    img = np.array(pil_img)
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
+
+    if blur_score < 50:
+        st.warning("⚠ Image appears blurry — prediction confidence may drop")
+    else:
+        st.success("✅ Image quality looks good")
+
+    st.caption(f"Blur Score: {blur_score:.1f}")
+
+# ================================================================
+# 🔬 ADVANCED ADD-ON — DIAGNOSTICS (INTEGRATION ONLY)
+# ================================================================
+def advanced_ai_diagnostics(results_log):
+
+    if not results_log:
+        return
+
+    st.markdown("---")
+    st.header("🧪 Advanced AI Diagnostics")
+
+    df_diag = pd.DataFrame(results_log)
+
+    avg_conf = df_diag["confidence"].mean()
+
+    gauge = {
+        "data": [{
+            "type": "indicator",
+            "mode": "gauge+number",
+            "value": avg_conf,
+            "title": {"text": "Average Confidence"},
+            "gauge": {
+                "axis": {"range": [0, 1]},
+                "steps": [
+                    {"range": [0, 0.5], "color": "#ffcccc"},
+                    {"range": [0.5, 0.75], "color": "#fff3cd"},
+                    {"range": [0.75, 1], "color": "#ccffcc"},
+                ],
+            },
+        }]
+    }
+
+    st.plotly_chart(gauge, use_container_width=True)
+
+    low_conf = df_diag[df_diag["confidence"] < CONF_THRESHOLD]
+
+    if len(low_conf) > 0:
+        st.subheader("⚠ Low Confidence Review Queue")
+        st.dataframe(low_conf)
+
+    st.subheader("📈 Confidence Distribution")
+    st.plotly_chart(
+        px.box(df_diag, y="confidence", points="all"),
+        use_container_width=True
+    )
+
+# ================================================================
 # MAIN UI
 # ================================================================
 def run_image_ai():
@@ -121,6 +183,9 @@ def run_image_ai():
 
         if file:
             image = Image.open(file).convert("RGB")
+
+            # ✅ integration only
+            check_image_quality(image)
 
             col1, col2 = st.columns(2)
 
@@ -160,8 +225,10 @@ def run_image_ai():
                     st.success(f"{label}: {conf:.2%}")
 
             df_chart = pd.DataFrame(rows, columns=["Species", "Confidence"])
-            st.plotly_chart(px.bar(df_chart, x="Species", y="Confidence"),
-                            use_container_width=True)
+            st.plotly_chart(
+                px.bar(df_chart, x="Species", y="Confidence"),
+                use_container_width=True
+            )
 
             st.subheader("🔥 Activation Map")
             overlay = generate_gradcam(model, input_tensor, image)
@@ -211,5 +278,11 @@ def run_image_ai():
     if results_log:
         st.subheader("📊 Session Analytics")
         df = pd.DataFrame(results_log)
-        st.plotly_chart(px.histogram(df, x="prediction"),
-                        use_container_width=True)
+        st.plotly_chart(
+            px.histogram(df, x="prediction"),
+            use_container_width=True
+        )
+
+        # ✅ integration only
+        advanced_ai_diagnostics(results_log)
+
